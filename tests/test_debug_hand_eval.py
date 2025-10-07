@@ -3,6 +3,8 @@
 import sys
 import os
 
+import pykah.game_logic.cards
+
 # Add the parent directory to the path so we can import the game modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -26,11 +28,11 @@ def test_kings_vs_sevens():
 
     # Player with Kings
     kings_hand = [create_card('King', 'Hearts'), create_card('King', 'Clubs')] + community
-    kings_score = game.evaluate_hand(kings_hand)
+    kings_score = pykah.game_logic.cards.evaluate_hand(kings_hand)
 
     # Player with 7s
     sevens_hand = [create_card('7', 'Hearts'), create_card('7', 'Clubs')] + community
-    sevens_score = game.evaluate_hand(sevens_hand)
+    sevens_score = pykah.game_logic.cards.evaluate_hand(sevens_hand)
 
     print(f'Kings pair score: {kings_score}')
     print(f'Sevens pair score: {sevens_score}')

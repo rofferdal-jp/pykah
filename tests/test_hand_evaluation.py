@@ -7,7 +7,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from pykah.pokah_board import Board
-from pykah.game_logic.game import Game, evaluate_hand, card_to_eval7_str
+from pykah.game_logic.game import Game
+from pykah.game_logic.cards import evaluate_hand, card_to_eval7_str
 import pydealer
 from pydealer.const import POKER_RANKS
 
