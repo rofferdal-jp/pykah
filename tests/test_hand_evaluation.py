@@ -6,8 +6,8 @@ import os
 # Add the parent directory to the path so we can import the game modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from pykah.game import Game, evaluate_hand, card_to_eval7_str
 from pykah.pokah_board import Board
+from pykah.game_logic.game import Game, evaluate_hand, card_to_eval7_str
 import pydealer
 from pydealer.const import POKER_RANKS
 
@@ -232,7 +232,7 @@ class TestHandEvaluation(unittest.TestCase):
 
     def test_fallback_evaluation_without_eval7(self):
         """Test the fallback hand evaluation when eval7 is not available."""
-        with patch('pykah.game.HAVE_EVAL7', False):
+        with patch('pykah.game_logic.game.HAVE_EVAL7', False):
             # Test that the fallback works correctly
             community_cards = self.create_hand([
                 ('Ace', 'Spades'), ('5', 'Diamonds'), ('3', 'Clubs'),

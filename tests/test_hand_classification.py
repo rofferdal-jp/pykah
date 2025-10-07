@@ -5,7 +5,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from pykah.pokah_board import Board
-from pykah.game import Game
+from pykah.game_logic.game import Game
 import pydealer
 
 
@@ -107,4 +107,3 @@ class TestHandClassification(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
-

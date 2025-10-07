@@ -6,7 +6,7 @@ import os
 # Add the parent directory to the path so we can import the game modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import pykah.game as game
+import pykah.game_logic.game as game
 import pydealer
 
 def create_card(value, suit):

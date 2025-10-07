@@ -3,7 +3,7 @@ import pygame
 from pykah.drawing import draw_board
 from pykah.init_prompt import prompt_input
 from pykah.pokah_board import Board
-from pykah.game import Game
+from pykah.game_logic.game import Game
 
 def main():
 
