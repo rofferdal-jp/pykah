@@ -18,12 +18,29 @@ class Board:
         self.pot = 0
         self.current_bet = 0
         self.dealer_index = 0
+        self.current_round_contributions = {}  # Track each player's bet this round
+        self.folded_players = set()  # Track which players have folded
+        self.last_actions = {}  # Track last action for each player ("call", "raise", "check", "fold")
+
+        # Winner display state
+        self.showdown_mode = False  # True when showing cards for showdown
+        self.showdown_players = []  # Players involved in showdown
+        self.winners = []  # Winning player indices
+        self.is_split_pot = False  # True if pot is split between multiple winners
 
     def reset_for_new_hand(self):
         # Reset per-hand state; keep player chip stacks
         self.community_cards = []
         self.pot = 0
         self.current_bet = 0
+        self.current_round_contributions = {}
+        self.folded_players = set()
+        self.last_actions = {}
+        # Reset winner display state
+        self.showdown_mode = False
+        self.showdown_players = []
+        self.winners = []
+        self.is_split_pot = False
         # Reset player hole cards
         for p in self.players:
             p.reset_for_new_hand()

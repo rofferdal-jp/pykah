@@ -35,7 +35,7 @@ def card_to_eval7_str(card):
 def evaluate_hand(cards):
     """Return an integer score for the best 5-card poker hand among given cards.
     If eval7 is available, use it for accurate Texas Hold'em evaluation. Otherwise
-    use a simplified high-card based score (sufficient for initial testing).
+    use a proper poker hand evaluation.
     """
     if HAVE_EVAL7:
         # eval7 expects strings like 'As', and has an evaluator: eval7.evaluate
@@ -45,11 +45,130 @@ def evaluate_hand(cards):
         score = eval7.evaluate(eval_cards)
         return score
     else:
-        # Simple fallback: sort by card value ranks and produce a tuple
-        rank_values = POKER_RANKS['values']
-        numeric = sorted([rank_values.get(c.value, 0) for c in cards], reverse=True)
-        # return tuple for comparisons
-        return tuple(numeric)
+        # Proper poker hand evaluation fallback
+        return _evaluate_poker_hand_fallback(cards)
+
+
+def _evaluate_poker_hand_fallback(cards):
+    """Fallback poker hand evaluation when eval7 is not available.
+    Returns a tuple where higher values indicate better hands.
+    Format: (hand_rank, primary_value, secondary_value, kickers...)
+    """
+    from collections import Counter
+
+    # Convert card values to numeric for comparison
+    value_map = {
+        '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+        'Jack': 11, 'Queen': 12, 'King': 13, 'Ace': 14
+    }
+
+    # Get numeric values and suits
+    values = [value_map[card.value] for card in cards]
+    suits = [card.suit for card in cards]
+
+    # Count occurrences of each value
+    value_counts = Counter(values)
+    counts = sorted(value_counts.values(), reverse=True)
+
+    # Sort values by count (for ties) then by value
+    sorted_by_count = sorted(value_counts.items(), key=lambda x: (x[1], x[0]), reverse=True)
+
+    # Check for flush
+    suit_counts = Counter(suits)
+    is_flush = max(suit_counts.values()) >= 5
+    flush_suit = None
+    if is_flush:
+        for suit, count in suit_counts.items():
+            if count >= 5:
+                flush_suit = suit
+                break
+
+    # Check for straight - need exactly 5 consecutive cards
+    unique_values = sorted(set(values))
+    is_straight = False
+    straight_high = 0
+
+    # Check for regular straight - need 5 consecutive unique values
+    if len(unique_values) >= 5:
+        for i in range(len(unique_values) - 4):
+            if unique_values[i+4] - unique_values[i] == 4:
+                is_straight = True
+                straight_high = unique_values[i+4]
+                break
+
+    # Check for A-2-3-4-5 straight (wheel) - special case
+    if set([14, 2, 3, 4, 5]).issubset(set(values)):
+        is_straight = True
+        straight_high = 5  # In wheel, 5 is the high card
+
+    # Hand rankings (higher number = better hand)
+    if is_straight and is_flush:
+        # Check if the straight uses flush cards
+        flush_values = sorted([v for i, v in enumerate(values) if suits[i] == flush_suit])
+        if len(flush_values) >= 5:
+            # Check if we have a straight flush
+            flush_unique = sorted(set(flush_values))
+            straight_flush = False
+            sf_high = 0
+
+            if len(flush_unique) >= 5:
+                for i in range(len(flush_unique) - 4):
+                    if flush_unique[i+4] - flush_unique[i] == 4:
+                        straight_flush = True
+                        sf_high = flush_unique[i+4]
+                        break
+
+                # Check for wheel in flush
+                if set([14, 2, 3, 4, 5]).issubset(set(flush_values)):
+                    straight_flush = True
+                    sf_high = 5
+
+            if straight_flush:
+                if sf_high == 14:  # Royal flush
+                    return (9, 14)
+                else:  # Straight flush
+                    return (8, sf_high)
+
+    # Check individual hand types
+    if counts == [4, 1, 1, 1] or counts == [4, 2, 1] or counts == [4, 3]:  # Four of a kind
+        quad_value = sorted_by_count[0][0]
+        kickers = sorted([item[0] for item in sorted_by_count[1:]], reverse=True)
+        return (7, quad_value, *kickers)
+
+    elif counts == [3, 2] or counts == [3, 2, 1, 1] or counts == [3, 2, 2]:  # Full house
+        trips_value = sorted_by_count[0][0]
+        pair_value = sorted_by_count[1][0]
+        return (6, trips_value, pair_value)
+
+    elif is_flush:  # Flush
+        flush_values = sorted([v for i, v in enumerate(values) if suits[i] == flush_suit], reverse=True)[:5]
+        return (5, *flush_values)
+
+    elif is_straight:  # Straight
+        return (4, straight_high)
+
+    elif counts == [3, 1, 1, 1, 1] or counts == [3, 1, 1, 1]:  # Three of a kind
+        trips_value = sorted_by_count[0][0]
+        kickers = sorted([item[0] for item in sorted_by_count[1:]], reverse=True)[:2]
+        return (3, trips_value, *kickers)
+
+    elif counts == [2, 2, 1, 1, 1] or counts == [2, 2, 1]:  # Two pair
+        pairs = [item[0] for item in sorted_by_count if item[1] == 2]
+        pairs.sort(reverse=True)
+        high_pair = pairs[0]
+        low_pair = pairs[1] if len(pairs) > 1 else pairs[0]
+        kickers = sorted([item[0] for item in sorted_by_count if item[1] == 1], reverse=True)
+        kicker = kickers[0] if kickers else 0
+        return (2, high_pair, low_pair, kicker)
+
+    elif counts == [2, 1, 1, 1, 1, 1] or counts == [2, 1, 1, 1, 1] or counts == [2, 1, 1, 1]:  # One pair
+        pair_value = sorted_by_count[0][0]
+        kickers = sorted([item[0] for item in sorted_by_count[1:]], reverse=True)[:3]
+        return (1, pair_value, *kickers)
+
+    else:  # High card
+        high_cards = sorted(values, reverse=True)[:5]
+        return (0, *high_cards)
 
 
 class Game:
@@ -113,6 +232,10 @@ class Game:
         """
         if contributions is None:
             contributions = defaultdict(int)
+
+        # Sync contributions to board for visual display
+        self.board.current_round_contributions = dict(contributions)
+
         players = self.board.players
         num = self.board.num_players
 
@@ -138,31 +261,99 @@ class Game:
             if idx not in folded and idx not in all_in and p.chip_stack > 0:
                 to_call = current_bet - contributions.get(idx, 0)
                 if p.is_human:
-                    # Prompt for action
-                    prompt = f"Your turn. To call: {to_call}. Options: fold(f), check(k), call(c), raise(r amount), allin(a)"
+                    # Update board contributions before prompting so display is current
+                    self.board.current_round_contributions = dict(contributions)
+
+                    # Determine valid actions based on current betting situation
+                    valid_actions = []
+                    action_descriptions = []
+
+                    # Fold is always available (unless already all-in)
+                    if p.chip_stack > 0:
+                        valid_actions.append("fold(f)")
+                        action_descriptions.append("fold(f)")
+
+                    if to_call <= 0:
+                        # No bet to call - can check
+                        valid_actions.append("check(k)")
+                        action_descriptions.append("check(k)")
+
+                        # Can also raise if have chips
+                        if p.chip_stack > 0:
+                            valid_actions.append("raise(r amount)")
+                            action_descriptions.append("raise(r amount)")
+                    else:
+                        # There's a bet to call
+                        if p.chip_stack >= to_call:
+                            # Can afford to call
+                            valid_actions.append("call(c)")
+                            action_descriptions.append(f"call(c) {to_call}")
+
+                            # Can also raise if have chips left after calling
+                            if p.chip_stack > to_call:
+                                valid_actions.append("raise(r amount)")
+                                action_descriptions.append("raise(r amount)")
+                        # If can't afford full call, only fold or all-in available
+
+                    # All-in is available if have chips
+                    if p.chip_stack > 0:
+                        valid_actions.append("allin(a)")
+                        action_descriptions.append(f"allin(a) {p.chip_stack}")
+
+                    # Create prompt with only valid actions
+                    if to_call > 0:
+                        prompt = f"Your turn. To call: {to_call}. Valid options: {', '.join(action_descriptions)}"
+                    else:
+                        prompt = f"Your turn. Valid options: {', '.join(action_descriptions)}"
+
                     # Pass the board so the prompt window shows the table and hole cards
-                    action = prompt_input(prompt, "c", numeric=False, board=self.board)
+                    action = prompt_input(prompt, "c" if to_call > 0 else "k", numeric=False, board=self.board)
                     action = action.strip().lower()
+
+                    # Validate and process action
                     if action in ("f", "fold"):
-                        folded.add(idx)
+                        if p.chip_stack > 0:  # Only allow fold if not already all-in
+                            folded.add(idx)
+                            self.board.folded_players.add(idx)
+                            self.board.last_actions[idx] = "fold"
+                        else:
+                            # Invalid action - default to check/call
+                            if to_call <= 0:
+                                self.board.last_actions[idx] = "check"
+                            else:
+                                # Forced all-in
+                                contributions[idx] += p.chip_stack
+                                self.board.pot += p.chip_stack
+                                p.chip_stack = 0
+                                all_in.add(idx)
+                                self.board.last_actions[idx] = "all-in"
                     elif action in ("k", "check"):
-                        if to_call > 0:
-                            # invalid, treat as call
+                        if to_call <= 0:
+                            # Valid check
+                            self.board.last_actions[idx] = "check"
+                        else:
+                            # Invalid check when there's a bet - treat as call
                             pay = min(p.chip_stack, to_call)
                             p.chip_stack -= pay
                             contributions[idx] += pay
                             self.board.pot += pay
                             if p.chip_stack == 0:
                                 all_in.add(idx)
-                        # else nothing
+                            self.board.last_actions[idx] = "call"
                     elif action in ("c", "call"):
-                        pay = min(p.chip_stack, to_call)
-                        p.chip_stack -= pay
-                        contributions[idx] += pay
-                        self.board.pot += pay
-                        if p.chip_stack == 0:
-                            all_in.add(idx)
+                        if to_call > 0:
+                            pay = min(p.chip_stack, to_call)
+                            p.chip_stack -= pay
+                            contributions[idx] += pay
+                            self.board.pot += pay
+                            if p.chip_stack == 0:
+                                all_in.add(idx)
+                            self.board.last_actions[idx] = "call"
+                        else:
+                            # Invalid call when nothing to call - treat as check
+                            self.board.last_actions[idx] = "check"
                     elif action.startswith("r") or action.startswith("raise"):
+                        # Parse raise amount
                         parts = action.split()
                         amount = None
                         if len(parts) > 1:
@@ -172,42 +363,75 @@ class Game:
                                 amount = None
                         if amount is None:
                             amount = self.min_raise
-                        # total new contribution should be contributions[idx] + to_call + amount
-                        pay = min(p.chip_stack, to_call + amount)
-                        p.chip_stack -= pay
-                        contributions[idx] += pay
-                        current_bet = contributions[idx]
-                        self.board.current_bet = current_bet
-                        self.board.pot += pay
-                        last_raiser = idx
-                        if p.chip_stack == 0:
-                            all_in.add(idx)
-                    elif action in ("a", "allin"):
-                        pay = p.chip_stack
-                        p.chip_stack = 0
-                        contributions[idx] += pay
-                        if contributions[idx] > current_bet:
+
+                        # Validate raise is legal
+                        total_needed = to_call + amount
+                        if p.chip_stack >= total_needed and amount >= self.min_raise:
+                            pay = min(p.chip_stack, total_needed)
+                            p.chip_stack -= pay
+                            contributions[idx] += pay
                             current_bet = contributions[idx]
                             self.board.current_bet = current_bet
+                            self.board.pot += pay
                             last_raiser = idx
-                        self.board.pot += pay
-                        all_in.add(idx)
-                    else:
-                        # default to call
-                        pay = min(p.chip_stack, to_call)
-                        p.chip_stack -= pay
-                        contributions[idx] += pay
-                        self.board.pot += pay
-                        if p.chip_stack == 0:
+                            if p.chip_stack == 0:
+                                all_in.add(idx)
+                            self.board.last_actions[idx] = "raise"
+                        else:
+                            # Invalid raise - default to call or check
+                            if to_call > 0:
+                                pay = min(p.chip_stack, to_call)
+                                p.chip_stack -= pay
+                                contributions[idx] += pay
+                                self.board.pot += pay
+                                if p.chip_stack == 0:
+                                    all_in.add(idx)
+                                self.board.last_actions[idx] = "call"
+                            else:
+                                self.board.last_actions[idx] = "check"
+                    elif action in ("a", "allin"):
+                        if p.chip_stack > 0:
+                            pay = p.chip_stack
+                            p.chip_stack = 0
+                            contributions[idx] += pay
+                            if contributions[idx] > current_bet:
+                                current_bet = contributions[idx]
+                                self.board.current_bet = current_bet
+                                last_raiser = idx
+                            self.board.pot += pay
                             all_in.add(idx)
+                            self.board.last_actions[idx] = "all-in"
+                        else:
+                            # Already all-in, treat as check
+                            self.board.last_actions[idx] = "check"
+                    else:
+                        # Invalid action - default to best legal action
+                        if to_call <= 0:
+                            self.board.last_actions[idx] = "check"
+                        elif p.chip_stack >= to_call:
+                            pay = min(p.chip_stack, to_call)
+                            p.chip_stack -= pay
+                            contributions[idx] += pay
+                            self.board.pot += pay
+                            if p.chip_stack == 0:
+                                all_in.add(idx)
+                            self.board.last_actions[idx] = "call"
+                        else:
+                            # Can't afford call, fold
+                            folded.add(idx)
+                            self.board.folded_players.add(idx)
+                            self.board.last_actions[idx] = "fold"
+
+                    # Update board contributions after human action
+                    self.board.current_round_contributions = dict(contributions)
                 else:
-                    # Simple AI: evaluate hand strength roughly
+                    # AI player logic - follow proper Texas Hold'em rules
                     ai_strength = self.estimate_hand_strength(idx)
-                    # heuristic thresholds
+
                     if to_call <= 0:
-                        # can check
-                        if ai_strength > 0.7 and p.chip_stack > self.min_raise:
-                            # raise
+                        # No bet to call - can check or raise
+                        if ai_strength > 0.7 and p.chip_stack >= self.min_raise:
+                            # Strong hand - raise
                             amount = min(self.min_raise * 2, p.chip_stack)
                             pay = min(p.chip_stack, amount)
                             p.chip_stack -= pay
@@ -218,20 +442,64 @@ class Game:
                             last_raiser = idx
                             if p.chip_stack == 0:
                                 all_in.add(idx)
+                            self.board.last_actions[idx] = "raise"
                         else:
-                            # check
-                            pass
+                            # Check with weaker hands or insufficient chips
+                            self.board.last_actions[idx] = "check"
                     else:
-                        # need to call or fold
-                        if ai_strength > 0.5:
-                            pay = min(p.chip_stack, to_call)
-                            p.chip_stack -= pay
-                            contributions[idx] += pay
-                            self.board.pot += pay
-                            if p.chip_stack == 0:
+                        # There's a bet to call - decide between fold, call, raise
+                        if p.chip_stack < to_call:
+                            # Can't afford full call
+                            if ai_strength > 0.6:
+                                # Good hand but short on chips - go all-in
+                                pay = p.chip_stack
+                                p.chip_stack = 0
+                                contributions[idx] += pay
+                                if contributions[idx] > current_bet:
+                                    current_bet = contributions[idx]
+                                    self.board.current_bet = current_bet
+                                    last_raiser = idx
+                                self.board.pot += pay
                                 all_in.add(idx)
+                                self.board.last_actions[idx] = "all-in"
+                            else:
+                                # Weak hand and can't afford call - fold
+                                folded.add(idx)
+                                self.board.folded_players.add(idx)
+                                self.board.last_actions[idx] = "fold"
                         else:
-                            folded.add(idx)
+                            # Can afford to call
+                            if ai_strength > 0.8 and p.chip_stack > to_call + self.min_raise:
+                                # Very strong hand - raise
+                                raise_amount = min(self.min_raise * 2, p.chip_stack - to_call)
+                                pay = min(p.chip_stack, to_call + raise_amount)
+                                p.chip_stack -= pay
+                                contributions[idx] += pay
+                                current_bet = contributions[idx]
+                                self.board.current_bet = current_bet
+                                self.board.pot += pay
+                                last_raiser = idx
+                                if p.chip_stack == 0:
+                                    all_in.add(idx)
+                                self.board.last_actions[idx] = "raise"
+                            elif ai_strength > 0.4:
+                                # Decent hand - call
+                                pay = min(p.chip_stack, to_call)
+                                p.chip_stack -= pay
+                                contributions[idx] += pay
+                                self.board.pot += pay
+                                if p.chip_stack == 0:
+                                    all_in.add(idx)
+                                self.board.last_actions[idx] = "call"
+                            else:
+                                # Weak hand - fold
+                                folded.add(idx)
+                                self.board.folded_players.add(idx)
+                                self.board.last_actions[idx] = "fold"
+
+                    # Update board contributions after AI action
+                    self.board.current_round_contributions = dict(contributions)
+
             # Move to next player
             idx = (idx + 1) % num
 
@@ -289,15 +557,35 @@ class Game:
         """
         best_score = None
         winners = []
+
+        # Set showdown mode for visual display
+        self.board.showdown_mode = True
+        self.board.showdown_players = active_players[:]
+
         for i in active_players:
             p = self.board.players[i]
             seven = p.hole_cards + self.board.community_cards
             score = evaluate_hand(seven)
-            if best_score is None or score < best_score:
-                best_score = score
-                winners = [i]
-            elif score == best_score:
-                winners.append(i)
+
+            # Handle comparison based on evaluation method
+            if HAVE_EVAL7:
+                # eval7: lower score is better
+                if best_score is None or score < best_score:
+                    best_score = score
+                    winners = [i]
+                elif score == best_score:
+                    winners.append(i)
+            else:
+                # fallback: higher score is better
+                if best_score is None or score > best_score:
+                    best_score = score
+                    winners = [i]
+                elif score == best_score:
+                    winners.append(i)
+
+        # Set winner information for display
+        self.board.winners = winners[:]
+        self.board.is_split_pot = len(winners) > 1
 
         # Split pot equally among winners
         if winners:
