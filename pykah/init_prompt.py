@@ -63,8 +63,13 @@ def prompt_input(prompt, default, numeric=False, board: Optional[object]=None):
                 # Render label and entry within box with padding
                 label = _font.render(f"{prompt}  (default: {default})", True, (255, 255, 255))
                 entry = _font.render(s, True, (255, 255, 255))
-                _screen_prompt.blit(label, (px + 6, py + 6))
-                _screen_prompt.blit(entry, (px + 6, py + 6 + label.get_height() + 6))
+
+                # Center the text horizontally within the prompt area
+                label_x = px + (pw - label.get_width()) // 2
+                entry_x = px + (pw - entry.get_width()) // 2
+
+                _screen_prompt.blit(label, (label_x, py + 6))
+                _screen_prompt.blit(entry, (entry_x, py + 6 + label.get_height() + 6))
             except Exception:
                 # fallback to top-left
                 label = _font.render(f"{prompt}  (default: {default})", True, (255, 255, 255))
