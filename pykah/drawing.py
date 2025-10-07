@@ -369,6 +369,32 @@ def draw_board(screen, board):
             text_y = marker_y - bb_text.get_height() // 2
             screen.blit(bb_text, (text_x, text_y))
 
+    # Draw pot display in the lower right part of the board
+    pot_amount = getattr(board, 'pot', 0)
+    if pot_amount > 0:
+        # Position in lower right area of the board surface
+        pot_box_w = 150
+        pot_box_h = 60
+        pot_x = board_surface[0] + board_surface[2] - pot_box_w - 20  # 20px from right edge
+        pot_y = board_surface[1] + board_surface[3] - pot_box_h - 20  # 20px from bottom edge
+
+        # Draw pot box background
+        pygame.draw.rect(screen, (50, 50, 50), (pot_x, pot_y, pot_box_w, pot_box_h), 0, 5)
+        pygame.draw.rect(screen, (255, 215, 0), (pot_x, pot_y, pot_box_w, pot_box_h), 3, 5)  # Golden border
+
+        # Draw pot label and amount
+        pot_label = PLAYER_FONT.render("POT", True, (255, 215, 0))
+        pot_value = PLAYER_FONT.render(f"{pot_amount}", True, (255, 255, 255))
+
+        # Center the text in the pot box
+        label_x = pot_x + (pot_box_w - pot_label.get_width()) // 2
+        label_y = pot_y + 8
+        value_x = pot_x + (pot_box_w - pot_value.get_width()) // 2
+        value_y = pot_y + pot_box_h - pot_value.get_height() - 8
+
+        screen.blit(pot_label, (label_x, label_y))
+        screen.blit(pot_value, (value_x, value_y))
+
     # End-of-hand overlay
     if getattr(board, 'hand_complete', False):
         overlay_w = 500

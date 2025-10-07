@@ -186,6 +186,9 @@ class Game:
         self.board.deck.shuffle()
         self.deck = self.board.deck
 
+        # Initialize contribution tracking for proper chip conservation
+        self.board.previous_contributions = {}
+
     def rotate_button(self):
         self.board.dealer_index = (self.board.dealer_index + 1) % self.board.num_players
 
@@ -235,6 +238,9 @@ class Game:
         if contributions is None:
             contributions = defaultdict(int)
 
+        # Store initial pot amount to track what was added this round
+        initial_pot = self.board.pot
+
         # Sync contributions to board for visual display
         self.board.current_round_contributions = dict(contributions)
 
@@ -254,14 +260,22 @@ class Game:
         # Order of action: starting_index, starting_index+1, ... wrapping
         idx = starting_index
         last_raiser = None
-        # players_needed_to_act: when becomes zero and no new raises, round ends
-        players_to_act = set(i for i in range(num) if i not in folded and players[i].chip_stack > 0)
 
-        # We'll loop until each active non-all-in player has had chance to match current_bet
+        # Track who has acted in this betting round
+        has_acted = set()
+
+        # Active players who can make decisions (not folded, not all-in)
+        active_decision_makers = [i for i in range(num)
+                                if i not in folded and i not in all_in and players[i].chip_stack > 0]
+
+        # We'll loop until all active players have had a chance to act and match the current bet
         while True:
             p = players[idx]
+
+            # Only process players who are not folded, not all-in, and have chips
             if idx not in folded and idx not in all_in and p.chip_stack > 0:
                 to_call = current_bet - contributions.get(idx, 0)
+
                 if p.is_human:
                     # Update board contributions before prompting so display is current
                     self.board.current_round_contributions = dict(contributions)
@@ -324,9 +338,9 @@ class Game:
                                 self.board.last_actions[idx] = "check"
                             else:
                                 # Forced all-in
-                                contributions[idx] += p.chip_stack
-                                self.board.pot += p.chip_stack
+                                pay = p.chip_stack
                                 p.chip_stack = 0
+                                contributions[idx] += pay
                                 all_in.add(idx)
                                 self.board.last_actions[idx] = "all-in"
                     elif action in ("k", "check"):
@@ -376,6 +390,10 @@ class Game:
                             self.board.current_bet = current_bet
                             self.board.pot += pay
                             last_raiser = idx
+                            # Reset has_acted since there's a new bet everyone needs to respond to
+                            # but keep the current player as acted since they just raised
+                            has_acted.clear()
+                            has_acted.add(idx)
                             if p.chip_stack == 0:
                                 all_in.add(idx)
                             self.board.last_actions[idx] = "raise"
@@ -400,6 +418,9 @@ class Game:
                                 current_bet = contributions[idx]
                                 self.board.current_bet = current_bet
                                 last_raiser = idx
+                                # Reset has_acted since there's a new bet everyone needs to respond to
+                                has_acted.clear()
+                                has_acted.add(idx)
                             self.board.pot += pay
                             all_in.add(idx)
                             self.board.last_actions[idx] = "all-in"
@@ -442,6 +463,9 @@ class Game:
                             self.board.current_bet = current_bet
                             self.board.pot += pay
                             last_raiser = idx
+                            # Reset has_acted since there's a new bet everyone needs to respond to
+                            has_acted.clear()
+                            has_acted.add(idx)
                             if p.chip_stack == 0:
                                 all_in.add(idx)
                             self.board.last_actions[idx] = "raise"
@@ -461,9 +485,9 @@ class Game:
                                     current_bet = contributions[idx]
                                     self.board.current_bet = current_bet
                                     last_raiser = idx
-                                self.board.pot += pay
-                                all_in.add(idx)
-                                self.board.last_actions[idx] = "all-in"
+                                    # Reset has_acted since there's a new bet everyone needs to respond to
+                                    has_acted.clear()
+                                    has_acted.add(idx)
                             else:
                                 # Weak hand and can't afford call - fold
                                 folded.add(idx)
@@ -481,6 +505,9 @@ class Game:
                                 self.board.current_bet = current_bet
                                 self.board.pot += pay
                                 last_raiser = idx
+                                # Reset has_acted since there's a new bet everyone needs to respond to
+                                has_acted.clear()
+                                has_acted.add(idx)
                                 if p.chip_stack == 0:
                                     all_in.add(idx)
                                 self.board.last_actions[idx] = "raise"
@@ -502,22 +529,73 @@ class Game:
                     # Update board contributions after AI action
                     self.board.current_round_contributions = dict(contributions)
 
+                # Mark this player as having acted
+                has_acted.add(idx)
+
             # Move to next player
             idx = (idx + 1) % num
 
             # Termination conditions:
-            # If only one non-folded player remains -> round ends early
+            # 1. If only one non-folded player remains -> round ends early
             active = [i for i in range(num) if i not in folded]
             if len(active) <= 1:
                 break
-            # If every non-folded, non-all-in player's contribution equals current_bet, and
-            # no one can/has raised further -> end round
-            waiting = [i for i in active if i not in all_in and contributions.get(i, 0) < current_bet]
-            if not waiting:
+
+            # 2. Check if betting round is complete:
+            # All active players (not folded, not all-in) have acted and either:
+            # - All have equal contributions (no outstanding bets), OR
+            # - All who can act have matched the current bet
+            active_decision_makers = [i for i in range(num)
+                                    if i not in folded and i not in all_in and players[i].chip_stack > 0]
+
+            if not active_decision_makers:
+                # No one left to make decisions
                 break
+
+            # Check if all active decision makers have acted
+            all_have_acted = all(i in has_acted for i in active_decision_makers)
+
+            # Check if all active players have matching contributions
+            all_matched_bet = all(contributions.get(i, 0) == current_bet for i in active_decision_makers)
+
+            if all_have_acted and all_matched_bet:
+                break
+
+        # Add all contributions from this betting round to the pot
+        # NOTE: Chips are already added to pot during individual betting actions
+        # No additional pot calculation needed here to avoid double-counting
+
+        # Store contributions for next round
+        self.board.previous_contributions = dict(contributions)
+
+        # Clear current round contributions display after betting round
+        self.board.current_round_contributions = {}
 
         active_players = [i for i in range(num) if i not in folded]
         return contributions, active_players
+
+    def consolidate_bets_to_pot(self, contributions):
+        """Ensure all bets from the betting round are properly transferred to the pot.
+        This function verifies that all contributions have been added to the pot and
+        clears the current round contributions display.
+        """
+        # Calculate total contributions this round
+        total_contributions = sum(contributions.values())
+
+        # The pot should already contain all contributions since we add them during betting
+        # This is a safety check to ensure consistency
+        if hasattr(self.board, 'pot_before_round'):
+            expected_pot = self.board.pot_before_round + total_contributions
+            if self.board.pot != expected_pot:
+                # If there's a discrepancy, correct it
+                self.board.pot = expected_pot
+
+        # Clear current round contributions display after betting round
+        # (Keep contributions dict for next round but clear display)
+        self.board.current_round_contributions = {}
+
+        # Store pot amount before next round for verification
+        self.board.pot_before_round = self.board.pot
 
     def estimate_hand_strength(self, player_index):
         """Return a heuristic strength in [0,1] for the player's current hand.
@@ -640,6 +718,58 @@ class Game:
         self.board.hand_complete = True
         return winners
 
+    def play(self):
+        """Main game loop - play specified number of hands."""
+        for _ in range(self.board.num_hands):
+            # Each player posts an ante if configured
+            if self.board.ante > 0:
+                self.post_antes()
+
+            # Start a new hand
+            self.start_hand()
+
+            # Rotate dealer button (skipped if only one player)
+            if self.board.num_players > 1:
+                self.rotate_button()
+
+        # At end of game, determine overall winner(s) if multiple hands played
+        if self.board.num_hands > 1:
+            self.determine_overall_winner()
+
+    def post_antes(self):
+        """Collect antes from all players and add to pot.
+        Antes are small forced bets posted by all players before the hand begins.
+        """
+        total_ante = 0
+        for p in self.board.players:
+            if p.chip_stack > 0:
+                ante = min(self.board.ante, p.chip_stack)
+                p.chip_stack -= ante
+                total_ante += ante
+
+        # Add total ante to pot
+        self.board.pot += total_ante
+
+    def determine_overall_winner(self):
+        """Determine the overall winner(s) across multiple hands.
+        This function identifies the player(s) with the most chips after the
+        specified number of hands.
+        """
+        max_chips = 0
+        winners = []
+
+        for p in self.board.players:
+            if p.chip_stack > max_chips:
+                max_chips = p.chip_stack
+                winners = [p]
+            elif p.chip_stack == max_chips:
+                winners.append(p)
+
+        # Display overall winner(s)
+        if winners:
+            winner_names = ", ".join([w.name for w in winners])
+            self.board.add_message(f"Overall winner(s): {winner_names} with {max_chips} chips each!")
+
     def start_hand(self, prompt_human=True):
         # Prepare new hand
         self.reset_hand_state()
@@ -667,7 +797,10 @@ class Game:
             self.resolve_showdown(winners)
             return winners
 
-        # Flop
+        # Flop - reset current bet for new betting round
+        self.board.current_bet = 0
+        # Reset contributions as chips from previous round are now committed to pot
+        contributions = defaultdict(int)
         self.deal_community(3)
         # betting starting at small blind (dealer+1)
         start = (self.board.dealer_index + 1) % num
@@ -677,7 +810,10 @@ class Game:
             self.resolve_showdown(winners)
             return winners
 
-        # Turn
+        # Turn - reset current bet for new betting round
+        self.board.current_bet = 0
+        # Reset contributions as chips from previous round are now committed to pot
+        contributions = defaultdict(int)
         self.deal_community(1)
         contributions, active = self.betting_round(start, contributions)
         if len(active) <= 1:
@@ -685,7 +821,10 @@ class Game:
             self.resolve_showdown(winners)
             return winners
 
-        # River
+        # River - reset current bet for new betting round
+        self.board.current_bet = 0
+        # Reset contributions as chips from previous round are now committed to pot
+        contributions = defaultdict(int)
         self.deal_community(1)
         contributions, active = self.betting_round(start, contributions)
         if len(active) <= 1:
