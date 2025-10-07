@@ -3,6 +3,7 @@ import pygame
 from pykah.drawing import draw_board
 from pykah.init_prompt import prompt_input
 from pykah.pokah_board import Board
+from pykah.game import Game
 
 def main():
 
@@ -13,13 +14,21 @@ def main():
     if human_name == "":
         print("Hello. A default name will be assigned to you.")
 
+    # Initialize pygame display for drawing
     pygame.init()
 
     SCREEN_SIZE = (1400, 800)
     screen = pygame.display.set_mode(SCREEN_SIZE)
 
     board = Board(human_name, num_players, chip_stack, big_blind)
+    game = Game(board)
+
     print("initial board:")
+    board.print_board()
+
+    # Run a single hand (this will prompt the human for actions via the prompt_input UI)
+    winners = game.start_hand(prompt_human=True)
+    print("Hand complete. Winners:", winners)
     board.print_board()
 
     running = True
@@ -41,4 +50,3 @@ def main():
 # Standard entry point structure
 if __name__ == "__main__":
     main()
-

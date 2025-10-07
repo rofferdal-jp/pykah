@@ -1,0 +1,6 @@
+pydealer
+pygame
+numpy
+# Optional but recommended for accurate hand evaluation
+eval7
+
