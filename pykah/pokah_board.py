@@ -28,6 +28,7 @@ class Board:
         self.winners = []  # Winning player indices
         self.is_split_pot = False  # True if pot is split between multiple winners
         self.hand_complete = False  # New flag: set True after showdown / hand resolution
+        self.winning_hand_type = ""  # Human-readable winning hand type
 
     def reset_for_new_hand(self):
         # Reset per-hand state; keep player chip stacks
@@ -43,6 +44,7 @@ class Board:
         self.winners = []
         self.is_split_pot = False
         self.hand_complete = False
+        self.winning_hand_type = ""
         # Reset player hole cards
         for p in self.players:
             p.reset_for_new_hand()

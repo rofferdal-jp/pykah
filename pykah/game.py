@@ -152,15 +152,17 @@ def _evaluate_poker_hand_fallback(cards):
         kickers = sorted([item[0] for item in sorted_by_count[1:]], reverse=True)[:2]
         return (3, trips_value, *kickers)
 
-    elif counts == [2, 2, 1, 1, 1] or counts == [2, 2, 1]:  # Two pair
-        pairs = [item[0] for item in sorted_by_count if item[1] == 2]
-        pairs.sort(reverse=True)
+    # Two pair detection
+    elif len([v for v, cnt in value_counts.items() if cnt == 2]) >= 2:
+        pairs = sorted([v for v, cnt in value_counts.items() if cnt == 2], reverse=True)
         high_pair = pairs[0]
-        low_pair = pairs[1] if len(pairs) > 1 else pairs[0]
-        kickers = sorted([item[0] for item in sorted_by_count if item[1] == 1], reverse=True)
-        kicker = kickers[0] if kickers else 0
+        low_pair = pairs[1]
+        # Kicker is the highest remaining value not part of the two pairs
+        remaining_values = [v for v in value_counts.keys() if v not in (high_pair, low_pair)]
+        kicker = max(remaining_values) if remaining_values else 0
         return (2, high_pair, low_pair, kicker)
 
+    # One pair
     elif counts == [2, 1, 1, 1, 1, 1] or counts == [2, 1, 1, 1, 1] or counts == [2, 1, 1, 1]:  # One pair
         pair_value = sorted_by_count[0][0]
         kickers = sorted([item[0] for item in sorted_by_count[1:]], reverse=True)[:3]
@@ -586,6 +588,41 @@ class Game:
         # Set winner information for display
         self.board.winners = winners[:]
         self.board.is_split_pot = len(winners) > 1
+
+        # Determine human-readable winning hand type using fallback evaluator
+        if winners:
+            # Use the first winner to determine the hand type (all winners share the same ranking)
+            winner_idx = winners[0]
+            winner = self.board.players[winner_idx]
+            seven = winner.hole_cards + self.board.community_cards
+            # _evaluate_poker_hand_fallback returns tuple with hand_rank as first element
+            try:
+                rank = _evaluate_poker_hand_fallback(seven)[0]
+            except Exception:
+                rank = None
+
+            if rank is None:
+                self.board.winning_hand_type = ""
+            else:
+                if rank >= 8:
+                    hand_name = 'Straight Flush'
+                elif rank == 7:
+                    hand_name = 'Four of a Kind'
+                elif rank == 6:
+                    hand_name = 'Full House'
+                elif rank == 5:
+                    hand_name = 'Flush'
+                elif rank == 4:
+                    hand_name = 'Straight'
+                elif rank == 3:
+                    hand_name = 'Three of a Kind'
+                elif rank == 2:
+                    hand_name = 'Two Pair'
+                elif rank == 1:
+                    hand_name = 'Pair'
+                else:
+                    hand_name = 'High Card'
+                self.board.winning_hand_type = hand_name
 
         # Split pot equally among winners with remainder handling to conserve chips
         if winners:

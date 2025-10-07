@@ -295,6 +295,7 @@ def draw_board(screen, board):
         PROMPT_AREA = (prompt_x, prompt_y, prompt_w, prompt_h)
 
     # Also draw community cards (if any) near the center of the table
+    community_top = None
     if hasattr(board, 'community_cards') and board.community_cards:
         CARD_W, CARD_H = 50, 75
         GAP = 8
@@ -302,8 +303,11 @@ def draw_board(screen, board):
         total_w = num * CARD_W + (num - 1) * GAP
         center_x = board_surface[0] + board_surface[2] // 2
         start_x = center_x - total_w // 2
-        # Position slightly above the center of the ellipse
-        y = board_surface[1] + board_surface[3] // 2 - CARD_H // 2
+        # Position the community cards just below the middle of the table so winner overlay
+        # can be rendered above them without obscuring the cards.
+        center_y = board_surface[1] + board_surface[3] // 2
+        y = center_y + 10  # top of community cards placed 10px below the vertical middle
+        community_top = y
         for i, c in enumerate(board.community_cards):
             cx = start_x + i * (CARD_W + GAP)
             card_rect = (cx, y, CARD_W, CARD_H)
@@ -368,11 +372,19 @@ def draw_board(screen, board):
     # End-of-hand overlay
     if getattr(board, 'hand_complete', False):
         overlay_w = 500
-        overlay_h = 160
+        overlay_h = 100  # Slightly taller to fit winner + hand type + prompt
         center_x = board_surface[0] + board_surface[2] // 2
-        center_y = board_surface[1] + board_surface[3] // 2
+        # Position overlay above the community cards so the cards remain visible
+        if community_top is not None:
+            oy = community_top - overlay_h - 10
+        else:
+            center_y = board_surface[1] + board_surface[3] // 2
+            oy = center_y - overlay_h // 2
         ox = center_x - overlay_w // 2
-        oy = center_y - overlay_h // 2
+        # clamp overlay to not go above board surface
+        top_limit = board_surface[1] + 5
+        if oy < top_limit:
+            oy = top_limit
         pygame.draw.rect(screen, (0, 0, 0), (ox, oy, overlay_w, overlay_h), 0, 10)
         pygame.draw.rect(screen, (255, 215, 0), (ox, oy, overlay_w, overlay_h), 3, 10)
         # Build text lines
@@ -384,14 +396,16 @@ def draw_board(screen, board):
             else:
                 winner_names = ", ".join(board.players[i].name for i in board.winners)
                 lines.append(f"Winner: {winner_names}")
+            # Show winning hand type if available
+            if getattr(board, 'winning_hand_type', None):
+                lines.append(f"Hand: {board.winning_hand_type}")
         else:
             lines.append("Hand Complete")
         lines.append("Press any key for next hand")
-        # Render lines
-        y_cursor = oy + 25
+        # Render lines vertically centered inside the shorter overlay
+        y_cursor = oy + 10
         for line in lines:
             text_surf = PLAYER_FONT.render(line, True, (255, 255, 255))
             tx = center_x - text_surf.get_width() // 2
             screen.blit(text_surf, (tx, y_cursor))
-            y_cursor += text_surf.get_height() + 10
-
+            y_cursor += text_surf.get_height() + 6
