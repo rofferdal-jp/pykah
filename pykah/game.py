@@ -239,7 +239,7 @@ class Game:
         players = self.board.players
         num = self.board.num_players
 
-        folded = set()
+        folded = set(self.board.folded_players)  # Persist folds from earlier rounds in the same hand
         all_in = set()
 
         # Track players with chips > 0 as active candidates
@@ -587,13 +587,20 @@ class Game:
         self.board.winners = winners[:]
         self.board.is_split_pot = len(winners) > 1
 
-        # Split pot equally among winners
+        # Split pot equally among winners with remainder handling to conserve chips
         if winners:
-            share = self.board.pot // len(winners)
-            for w in winners:
+            total_pot = self.board.pot
+            share = total_pot // len(winners)
+            remainder = total_pot - share * len(winners)
+            for idx, w in enumerate(winners):
                 self.board.players[w].chip_stack += share
+                # Distribute remainder chips to earliest winners by seat order (deterministic)
+                if remainder > 0:
+                    self.board.players[w].chip_stack += 1
+                    remainder -= 1
         # Reset pot
         self.board.pot = 0
+        self.board.hand_complete = True
         return winners
 
     def start_hand(self, prompt_human=True):

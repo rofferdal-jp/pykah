@@ -27,6 +27,7 @@ class Board:
         self.showdown_players = []  # Players involved in showdown
         self.winners = []  # Winning player indices
         self.is_split_pot = False  # True if pot is split between multiple winners
+        self.hand_complete = False  # New flag: set True after showdown / hand resolution
 
     def reset_for_new_hand(self):
         # Reset per-hand state; keep player chip stacks
@@ -41,6 +42,7 @@ class Board:
         self.showdown_players = []
         self.winners = []
         self.is_split_pot = False
+        self.hand_complete = False
         # Reset player hole cards
         for p in self.players:
             p.reset_for_new_hand()

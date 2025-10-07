@@ -364,3 +364,34 @@ def draw_board(screen, board):
             text_x = marker_x - bb_text.get_width() // 2
             text_y = marker_y - bb_text.get_height() // 2
             screen.blit(bb_text, (text_x, text_y))
+
+    # End-of-hand overlay
+    if getattr(board, 'hand_complete', False):
+        overlay_w = 500
+        overlay_h = 160
+        center_x = board_surface[0] + board_surface[2] // 2
+        center_y = board_surface[1] + board_surface[3] // 2
+        ox = center_x - overlay_w // 2
+        oy = center_y - overlay_h // 2
+        pygame.draw.rect(screen, (0, 0, 0), (ox, oy, overlay_w, overlay_h), 0, 10)
+        pygame.draw.rect(screen, (255, 215, 0), (ox, oy, overlay_w, overlay_h), 3, 10)
+        # Build text lines
+        lines = []
+        if board.winners:
+            if board.is_split_pot:
+                winner_names = ", ".join(board.players[i].name for i in board.winners)
+                lines.append(f"Split Pot: {winner_names}")
+            else:
+                winner_names = ", ".join(board.players[i].name for i in board.winners)
+                lines.append(f"Winner: {winner_names}")
+        else:
+            lines.append("Hand Complete")
+        lines.append("Press any key for next hand")
+        # Render lines
+        y_cursor = oy + 25
+        for line in lines:
+            text_surf = PLAYER_FONT.render(line, True, (255, 255, 255))
+            tx = center_x - text_surf.get_width() // 2
+            screen.blit(text_surf, (tx, y_cursor))
+            y_cursor += text_surf.get_height() + 10
+

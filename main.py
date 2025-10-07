@@ -26,22 +26,27 @@ def main():
     print("initial board:")
     board.print_board()
 
-    # Run a single hand (this will prompt the human for actions via the prompt_input UI)
+    # Start first hand immediately
     winners = game.start_hand(prompt_human=True)
     print("Hand complete. Winners:", winners)
     board.print_board()
 
     running = True
     while running:
-
         screen.fill((0, 0, 0))
-
-        # board surface
         draw_board(screen, board)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN:
+                # If a hand is complete, any key starts next hand
+                if board.hand_complete:
+                    # Rotate dealer to next player and start a new hand
+                    game.rotate_button()
+                    winners = game.start_hand(prompt_human=True)
+                    print("Hand complete. Winners:", winners)
+                    board.print_board()
 
         pygame.display.update()
 
