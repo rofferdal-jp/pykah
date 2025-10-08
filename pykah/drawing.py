@@ -38,7 +38,8 @@ def ensure_font():
 
 
 def draw_card(screen, card, x, y, width, height, border_radius=5, border_width=2, font_override=None):
-    # Draw a single card at the specified position with consistent styling.
+    " Draw a single card at the specified position with consistent styling.
+
     ensure_font()
 
     card_rect = (x, y, width, height)
@@ -47,15 +48,77 @@ def draw_card(screen, card, x, y, width, height, border_radius=5, border_width=2
     pygame.draw.rect(screen, (255, 255, 255), card_rect, 0, border_radius)
     pygame.draw.rect(screen, (0, 0, 0), card_rect, border_width, border_radius)
 
-    # Get card label and render text
-    label = getattr(card, 'abbrev', None) or getattr(card, 'name', str(card))
-    font_to_use = font_override or CARD_FONT
-    text_surf = font_to_use.render(label, True, (0, 0, 0))
+    # Get card information
+    card_str = getattr(card, 'abbrev', None) or getattr(card, 'name', str(card))
 
-    # Center the text in the card
-    text_x = x + (width - text_surf.get_width()) // 2
-    text_y = y + (height - text_surf.get_height()) // 2
-    screen.blit(text_surf, (text_x, text_y))
+    # Parse card value and suit
+    if hasattr(card, 'value') and hasattr(card, 'suit'):
+        # Use card object attributes
+        value = card.value
+        suit = card.suit
+    else:
+        # Parse from string representation (e.g., "As", "Kh", "10d", "Jc")
+        if len(card_str) >= 2:
+            if card_str[-1].lower() in 'shdc':
+                value = card_str[:-1]
+                suit_char = card_str[-1].lower()
+                suit_map = {'s': 'Spades', 'h': 'Hearts', 'd': 'Diamonds', 'c': 'Clubs'}
+                suit = suit_map.get(suit_char, 'Spades')
+            else:
+                value = card_str
+                suit = 'Spades'  # default
+        else:
+            value = card_str
+            suit = 'Spades'  # default
+
+    # Convert value to display format
+    value_display = value
+    if value == '10':
+        value_display = 'T'
+    elif value == 'Jack':
+        value_display = 'J'
+    elif value == 'Queen':
+        value_display = 'Q'
+    elif value == 'King':
+        value_display = 'K'
+    elif value == 'Ace':
+        value_display = 'A'
+
+    # Suit symbols and colors
+    suit_symbols = {
+        'Spades': '♠',
+        'Hearts': '♥',
+        'Diamonds': '♦',
+        'Clubs': '♣'
+    }
+
+    suit_colors = {
+        'Spades': (0, 0, 0),      # Black
+        'Hearts': (255, 0, 0),    # Red
+        'Diamonds': (255, 0, 0),  # Red
+        'Clubs': (0, 0, 0)        # Black
+    }
+
+    suit_symbol = suit_symbols.get(suit, '?')
+    suit_color = suit_colors.get(suit, (0, 0, 0))
+
+    font_to_use = font_override or CARD_FONT
+
+    # Render value and suit
+    value_surf = font_to_use.render(value_display, True, suit_color)
+    suit_surf = font_to_use.render(suit_symbol, True, suit_color)
+
+    # Calculate positioning for stacked layout (value on top, suit below)
+    total_height = value_surf.get_height() + suit_surf.get_height() + 2  # 2px gap
+    start_y = y + (height - total_height) // 2
+
+    # Center horizontally
+    value_x = x + (width - value_surf.get_width()) // 2
+    suit_x = x + (width - suit_surf.get_width()) // 2
+
+    # Draw value and suit
+    screen.blit(value_surf, (value_x, start_y))
+    screen.blit(suit_surf, (suit_x, start_y + value_surf.get_height() + 2))
 
 def compute_player_positions(num_players=10):
     """Compute num_players positions distributed evenly along the upper arch of the
