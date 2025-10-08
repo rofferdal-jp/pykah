@@ -36,14 +36,9 @@ def test_kings_vs_sevens():
 
     print(f'Kings pair score: {kings_score}')
     print(f'Sevens pair score: {sevens_score}')
-    print(f'Have eval7: {game.HAVE_EVAL7}')
 
-    if game.HAVE_EVAL7:
-        kings_wins = kings_score < sevens_score
-        print(f'Kings < Sevens (eval7 lower is better): {kings_wins}')
-    else:
-        kings_wins = kings_score > sevens_score
-        print(f'Kings > Sevens (fallback higher is better): {kings_wins}')
+    kings_wins = kings_score > sevens_score
+    print(f'Kings > Sevens (fallback higher is better): {kings_wins}')
 
     print(f'Kings should win: {kings_wins}')
     return kings_wins

@@ -3,7 +3,7 @@ from collections import defaultdict
 import pydealer
 from pydealer.const import POKER_RANKS
 
-from pykah.game_logic.cards import _evaluate_poker_hand_fallback, evaluate_hand, evaluate_hand_strength, name_winning_hand, HAVE_EVAL7
+from pykah.game_logic.cards import evaluate_hand, evaluate_hand_strength, name_winning_hand
 from pykah.pokah_board import Board
 from pykah.init_prompt import prompt_input
 
@@ -487,21 +487,12 @@ class Game:
             seven = p.hole_cards + self.board.community_cards
             score = evaluate_hand(seven)
 
-            # Handle comparison based on evaluation method
-            if HAVE_EVAL7:
-                # eval7: lower score is better
-                if best_score is None or score < best_score:
-                    best_score = score
-                    winners = [i]
-                elif score == best_score:
-                    winners.append(i)
-            else:
-                # fallback: higher score is better
-                if best_score is None or score > best_score:
-                    best_score = score
-                    winners = [i]
-                elif score == best_score:
-                    winners.append(i)
+            # Compare hand scores to find winner(s)
+            if best_score is None or score > best_score:
+                best_score = score
+                winners = [i]
+            elif score == best_score:
+                winners.append(i)
         return winners
 
     def play(self):

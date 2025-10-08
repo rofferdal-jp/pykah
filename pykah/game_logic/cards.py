@@ -1,14 +1,6 @@
 import pydealer
 from pydealer.const import POKER_RANKS
 
-# Try to import eval7 for hand evaluation; otherwise use a simple fallback
-from collections import Counter
-try:
-    import eval7
-    HAVE_EVAL7 = True
-except Exception:
-    HAVE_EVAL7 = False
-
 # Mapping helpers to convert pydealer Card to eval7 notation
 VALUE_MAP = {
     '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
@@ -18,11 +10,11 @@ SUIT_MAP = {
     'Spades': 's', 'Hearts': 'h', 'Diamonds': 'd', 'Clubs': 'c'
 }
 
-def _evaluate_poker_hand_fallback(cards):
-    """Fallback poker hand evaluation when eval7 is not available.
-    Returns a tuple where higher values indicate better hands.
-    Format: (hand_rank, primary_value, secondary_value, kickers...)
-    """
+def evaluate_hand(cards):
+    # Simple evaluation instead of using a library
+    return __simply_evaluate_poker_hand(cards)
+
+def __simply_evaluate_poker_hand(cards):
     from collections import Counter
 
     # Convert card values to numeric for comparison
@@ -141,49 +133,19 @@ def _evaluate_poker_hand_fallback(cards):
         high_cards = sorted(values, reverse=True)[:5]
         return (0, *high_cards)
 
-
-def evaluate_hand(cards):
-    """Return an integer score for the best 5-card poker hand among given cards.
-    If eval7 is available, use it for accurate Texas Hold'em evaluation. Otherwise
-    use a proper poker hand evaluation.
-    """
-    if HAVE_EVAL7:
-        # eval7 expects strings like 'As', and has an evaluator: eval7.evaluate
-        eval_cards = [eval7.Card(card_to_eval7_str(c)) for c in cards]
-        # Build Deck/Hand for evaluator; eval7 evaluate takes list of card objects
-        # For Hold'em: evaluate 7-card best-hand score as integer (lower is better in eval7)
-        score = eval7.evaluate(eval_cards)
-        return score
-    else:
-        # Proper poker hand evaluation fallback
-        return _evaluate_poker_hand_fallback(cards)
-
-
-def card_to_eval7_str(card):
-    """Convert a pydealer.Card to eval7 two-char string like 'As' or 'Td'."""
-    v = VALUE_MAP.get(card.value, card.value[0].upper())
-    s = SUIT_MAP.get(card.suit, card.suit[0].lower())
-    return v + s
-
-
+# Very simple heuristic for hand strength
+# Returns a float between 0 and 1 indicating hand strength
+# This is a naive implementation and can be improved
 def evaluate_hand_strength(community_cards, hole_cards) -> float:
     cards = hole_cards + community_cards
     if len(cards) >= 5:
-        # Use evaluator if present
-        if HAVE_EVAL7:
-            # compute numeric score: lower is better in eval7; convert to inverse
-            e_cards = [eval7.Card(card_to_eval7_str(c)) for c in cards]
-            score = eval7.evaluate(e_cards)
-            # transform into 0..1 (approx) using a large constant; lower -> stronger
-            return 1.0 / (1 + score)
-        else:
-            # fallback: check for any pair in combined cards
-            ranks = [c.value for c in cards]
-            from collections import Counter
-            cnt = Counter(ranks)
-            if any(v >= 2 for v in cnt.values()):
-                return 0.8
-            return 0.3
+        # check for any pair in combined cards
+        ranks = [c.value for c in cards]
+        from collections import Counter
+        cnt = Counter(ranks)
+        if any(v >= 2 for v in cnt.values()):
+            return 0.8
+        return 0.3
     else:
         # preflop heuristic: pocket pair strong, high cards moderate
         v0 = hole_cards[0].value if len(hole_cards) > 0 else None
@@ -198,7 +160,7 @@ def evaluate_hand_strength(community_cards, hole_cards) -> float:
 def name_winning_hand(seven_cards) -> str:
     # _evaluate_poker_hand_fallback returns tuple with hand_rank as first element
     try:
-        rank = _evaluate_poker_hand_fallback(seven_cards)[0]
+        rank = __simply_evaluate_poker_hand(seven_cards)[0]
     except Exception:
         rank = None
 

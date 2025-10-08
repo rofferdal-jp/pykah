@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from pykah.pokah_board import Board
 from pykah.game_logic.game import Game
-from pykah.game_logic.cards import evaluate_hand, card_to_eval7_str
+from pykah.game_logic.cards import evaluate_hand
 import pydealer
 from pydealer.const import POKER_RANKS
 
@@ -219,37 +219,22 @@ class TestHandEvaluation(unittest.TestCase):
         self.assertIn(1, winners)
         self.assertTrue(self.board.is_split_pot)
 
-    def test_card_to_eval7_conversion(self):
-        """Test the card conversion function for eval7."""
-        # Test various card conversions
-        card_10_hearts = self.create_card('10', 'Hearts')
-        self.assertEqual(card_to_eval7_str(card_10_hearts), 'Th')
+    def test_evaluate_hand(self):
+        community_cards = self.create_hand([
+            ('Ace', 'Spades'), ('5', 'Diamonds'), ('3', 'Clubs'),
+            ('9', 'Hearts'), ('2', 'Spades')
+        ])
 
-        card_ace_spades = self.create_card('Ace', 'Spades')
-        self.assertEqual(card_to_eval7_str(card_ace_spades), 'As')
+        # Higher pair should have higher score in fallback mode
+        kings_hand = self.create_hand([('King', 'Hearts'), ('King', 'Clubs')]) + community_cards
+        sevens_hand = self.create_hand([('7', 'Hearts'), ('7', 'Clubs')]) + community_cards
 
-        card_king_diamonds = self.create_card('King', 'Diamonds')
-        self.assertEqual(card_to_eval7_str(card_king_diamonds), 'Kd')
+        kings_score = evaluate_hand(kings_hand)
+        sevens_score = evaluate_hand(sevens_hand)
 
-    def test_fallback_evaluation_without_eval7(self):
-        """Test the fallback hand evaluation when eval7 is not available."""
-        with patch('pykah.game_logic.game.HAVE_EVAL7', False):
-            # Test that the fallback works correctly
-            community_cards = self.create_hand([
-                ('Ace', 'Spades'), ('5', 'Diamonds'), ('3', 'Clubs'),
-                ('9', 'Hearts'), ('2', 'Spades')
-            ])
-
-            # Higher pair should have higher score in fallback mode
-            kings_hand = self.create_hand([('King', 'Hearts'), ('King', 'Clubs')]) + community_cards
-            sevens_hand = self.create_hand([('7', 'Hearts'), ('7', 'Clubs')]) + community_cards
-
-            kings_score = evaluate_hand(kings_hand)
-            sevens_score = evaluate_hand(sevens_hand)
-
-            # In fallback mode, this should be tuple comparison
-            self.assertIsInstance(kings_score, tuple)
-            self.assertIsInstance(sevens_score, tuple)
+        # In fallback mode, this should be tuple comparison
+        self.assertIsInstance(kings_score, tuple)
+        self.assertIsInstance(sevens_score, tuple)
 
     def test_same_pair_different_kickers(self):
         """Test that when pairs are the same, kickers determine the winner."""
