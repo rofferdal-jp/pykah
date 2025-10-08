@@ -23,7 +23,6 @@ _player_positions_cache = {}
 HUMAN_RECT = None
 PROMPT_AREA = None
 
-
 def ensure_font():
     """Ensure the pygame font subsystem and the shared PLAYER_FONT/CARD_FONT are initialized.
     This is safe to call multiple times; the font objects are created only once.
@@ -37,6 +36,26 @@ def ensure_font():
         if CARD_FONT is None:
             CARD_FONT = pygame.font.SysFont(PLAYER_FONT_NAME, CARD_FONT_SIZE)
 
+
+def draw_card(screen, card, x, y, width, height, border_radius=5, border_width=2, font_override=None):
+    # Draw a single card at the specified position with consistent styling.
+    ensure_font()
+
+    card_rect = (x, y, width, height)
+
+    # Draw card background and border
+    pygame.draw.rect(screen, (255, 255, 255), card_rect, 0, border_radius)
+    pygame.draw.rect(screen, (0, 0, 0), card_rect, border_width, border_radius)
+
+    # Get card label and render text
+    label = getattr(card, 'abbrev', None) or getattr(card, 'name', str(card))
+    font_to_use = font_override or CARD_FONT
+    text_surf = font_to_use.render(label, True, (0, 0, 0))
+
+    # Center the text in the card
+    text_x = x + (width - text_surf.get_width()) // 2
+    text_y = y + (height - text_surf.get_height()) // 2
+    screen.blit(text_surf, (text_x, text_y))
 
 def compute_player_positions(num_players=10):
     """Compute num_players positions distributed evenly along the upper arch of the
@@ -240,18 +259,7 @@ def draw_board(screen, board):
 
                 for i, card in enumerate(player_obj.hole_cards):
                     card_x = cards_start_x + i * (CARD_W + GAP)
-                    card_rect = (card_x, cards_y, CARD_W, CARD_H)
-
-                    # Draw card background and border
-                    pygame.draw.rect(screen, (255, 255, 255), card_rect, 0, 3)
-                    pygame.draw.rect(screen, (0, 0, 0), card_rect, 1, 3)
-
-                    # Card label
-                    label = getattr(card, 'abbrev', None) or getattr(card, 'name', str(card))
-                    text_surf = PLAYER_FONT.render(label, True, (0, 0, 0))
-                    tx = card_x + (CARD_W - text_surf.get_width()) // 2
-                    ty = cards_y + (CARD_H - text_surf.get_height()) // 2
-                    screen.blit(text_surf, (tx, ty))
+                    draw_card(screen, card, card_x, cards_y, CARD_W, CARD_H, border_radius=3, border_width=1, font_override=PLAYER_FONT)
 
     # Draw the human player's hole cards centered below the board
     try:
@@ -272,17 +280,7 @@ def draw_board(screen, board):
 
         for i, c in enumerate(human.hole_cards):
             cx = start_x + i * (CARD_W + GAP)
-            card_rect = (cx, cards_y, CARD_W, CARD_H)
-            # Draw card background and border
-            pygame.draw.rect(screen, (255, 255, 255), card_rect, 0, 5)
-            pygame.draw.rect(screen, (0, 0, 0), card_rect, 2, 5)
-            # Card label (use the pydealer abbrev or name)
-            label = getattr(c, 'abbrev', None) or getattr(c, 'name', str(c))
-            # Center the label in the card
-            text_surf = CARD_FONT.render(label, True, (0, 0, 0))
-            tx = cx + (CARD_W - text_surf.get_width()) // 2
-            ty = cards_y + (CARD_H - text_surf.get_height()) // 2
-            screen.blit(text_surf, (tx, ty))
+            draw_card(screen, c, cx, cards_y, CARD_W, CARD_H, border_radius=5, border_width=2)
 
         # Define prompt area below the human's hole cards
         # Make prompt area at least a reasonable width so the prompt text fits
@@ -310,14 +308,7 @@ def draw_board(screen, board):
         community_top = y
         for i, c in enumerate(board.community_cards):
             cx = start_x + i * (CARD_W + GAP)
-            card_rect = (cx, y, CARD_W, CARD_H)
-            pygame.draw.rect(screen, (255, 255, 255), card_rect, 0, 5)
-            pygame.draw.rect(screen, (0, 0, 0), card_rect, 2, 5)
-            label = getattr(c, 'abbrev', None) or getattr(c, 'name', str(c))
-            text_surf = CARD_FONT.render(label, True, (0, 0, 0))
-            tx = cx + (CARD_W - text_surf.get_width()) // 2
-            ty = y + (CARD_H - text_surf.get_height()) // 2
-            screen.blit(text_surf, (tx, ty))
+            draw_card(screen, c, cx, y, CARD_W, CARD_H, border_radius=5, border_width=2)
 
     # Draw dealer button, small blind, and big blind markers
     # Draw these inside the player rectangles in the upper right corner
