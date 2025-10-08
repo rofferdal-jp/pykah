@@ -24,9 +24,8 @@ HUMAN_RECT = None
 PROMPT_AREA = None
 
 def ensure_font():
-    """Ensure the pygame font subsystem and the shared PLAYER_FONT/CARD_FONT are initialized.
-    This is safe to call multiple times; the font objects are created only once.
-    """
+    # Ensure the pygame font subsystem and the shared PLAYER_FONT/CARD_FONT are initialized.
+
     global PLAYER_FONT, CARD_FONT
     if PLAYER_FONT is None or CARD_FONT is None:
         if not pygame.font.get_init():
@@ -38,7 +37,7 @@ def ensure_font():
 
 
 def draw_card(screen, card, x, y, width, height, border_radius=5, border_width=2, font_override=None):
-    " Draw a single card at the specified position with consistent styling.
+    # Draw a single card at the specified position with consistent styling
 
     ensure_font()
 
@@ -121,12 +120,8 @@ def draw_card(screen, card, x, y, width, height, border_radius=5, border_width=2
     screen.blit(suit_surf, (suit_x, start_y + value_surf.get_height() + 2))
 
 def compute_player_positions(num_players=10):
-    """Compute num_players positions distributed evenly along the upper arch of the
-    ellipse defined by board_surface. Returns a tuple of (x, y, w, h) rects.
+    # Compute player positions around the board surface ellipse
 
-    The human player (index 0) will be positioned dynamically above their hole cards,
-    so this function only computes positions for AI players (indices 1 to num_players-1).
-    """
     center_x = board_surface[0] + board_surface[2] // 2
     center_y = board_surface[1] + board_surface[3] // 2
     radius_x = board_surface[2] // 2
