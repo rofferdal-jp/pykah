@@ -1,3 +1,4 @@
+.idea/*
 pykah/__pycache__/*
 tests/__pycache__/*
 pykah/game_logic/__pycache__/*

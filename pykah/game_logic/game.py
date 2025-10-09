@@ -6,6 +6,7 @@ from pydealer.const import POKER_RANKS
 from pykah.game_logic.cards import evaluate_hand, evaluate_hand_strength, name_winning_hand
 from pykah.pokah_board import Board
 from pykah.init_prompt import prompt_input
+from pykah.game_logic.ai_player_logic import ai_take_action  # extracted AI logic
 
 class Game:
     def __init__(self, board: Board):
@@ -67,7 +68,7 @@ class Game:
         """Run a betting round; contributions is a dict of prior contributions in this hand.
         Returns updated contributions and list of active player indices (not folded).
         Human player is prompted via prompt_input when it's their turn.
-        AI uses a simple heuristic.
+        AI logic delegated to ai_player_logic.ai_take_action.
         """
         if contributions is None:
             contributions = defaultdict(int)
@@ -282,86 +283,8 @@ class Game:
                     # Update board contributions after human action
                     self.board.current_round_contributions = dict(contributions)
                 else:
-                    # AI player logic - follow proper Texas Hold'em rules
-                    ai_strength = self.estimate_hand_strength(idx)
-
-                    if to_call <= 0:
-                        # No bet to call - can check or raise
-                        if ai_strength > 0.7 and p.chip_stack >= self.min_raise:
-                            # Strong hand - raise
-                            amount = min(self.min_raise * 2, p.chip_stack)
-                            pay = min(p.chip_stack, amount)
-                            p.chip_stack -= pay
-                            contributions[idx] += pay
-                            current_bet = contributions[idx]
-                            self.board.current_bet = current_bet
-                            self.board.pot += pay
-                            last_raiser = idx
-                            # Reset has_acted since there's a new bet everyone needs to respond to
-                            has_acted.clear()
-                            has_acted.add(idx)
-                            if p.chip_stack == 0:
-                                all_in.add(idx)
-                            self.board.last_actions[idx] = "raise"
-                        else:
-                            # Check with weaker hands or insufficient chips
-                            self.board.last_actions[idx] = "check"
-                    else:
-                        # There's a bet to call - decide between fold, call, raise
-                        if p.chip_stack < to_call:
-                            # Can't afford full call
-                            if ai_strength > 0.6:
-                                # Good hand but short on chips - go all-in
-                                pay = p.chip_stack
-                                p.chip_stack = 0
-                                contributions[idx] += pay
-                                if contributions[idx] > current_bet:
-                                    current_bet = contributions[idx]
-                                    self.board.current_bet = current_bet
-                                    last_raiser = idx
-                                    # Reset has_acted since there's a new bet everyone needs to respond to
-                                    has_acted.clear()
-                                    has_acted.add(idx)
-                            else:
-                                # Weak hand and can't afford call - fold
-                                folded.add(idx)
-                                self.board.folded_players.add(idx)
-                                self.board.last_actions[idx] = "fold"
-                        else:
-                            # Can afford to call
-                            if ai_strength > 0.8 and p.chip_stack > to_call + self.min_raise:
-                                # Very strong hand - raise
-                                raise_amount = min(self.min_raise * 2, p.chip_stack - to_call)
-                                pay = min(p.chip_stack, to_call + raise_amount)
-                                p.chip_stack -= pay
-                                contributions[idx] += pay
-                                current_bet = contributions[idx]
-                                self.board.current_bet = current_bet
-                                self.board.pot += pay
-                                last_raiser = idx
-                                # Reset has_acted since there's a new bet everyone needs to respond to
-                                has_acted.clear()
-                                has_acted.add(idx)
-                                if p.chip_stack == 0:
-                                    all_in.add(idx)
-                                self.board.last_actions[idx] = "raise"
-                            elif ai_strength > 0.4:
-                                # Decent hand - call
-                                pay = min(p.chip_stack, to_call)
-                                p.chip_stack -= pay
-                                contributions[idx] += pay
-                                self.board.pot += pay
-                                if p.chip_stack == 0:
-                                    all_in.add(idx)
-                                self.board.last_actions[idx] = "call"
-                            else:
-                                # Weak hand - fold
-                                folded.add(idx)
-                                self.board.folded_players.add(idx)
-                                self.board.last_actions[idx] = "fold"
-
-                    # Update board contributions after AI action
-                    self.board.current_round_contributions = dict(contributions)
+                    # Delegate AI action to extracted module
+                    current_bet = ai_take_action(self, idx, to_call, contributions, current_bet, has_acted, all_in, folded)
 
                 # Mark this player as having acted
                 has_acted.add(idx)
