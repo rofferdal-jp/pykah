@@ -86,7 +86,13 @@ class Hand:
         """Check if cards form a sequence"""
         if len(self.rank_counts) != 5:
             return False
-        return self.rank_values[0] - self.rank_values[4] == 4
+        # Check regular straight
+        if self.rank_values[0] - self.rank_values[4] == 4:
+            return True
+        # Check for A-2-3-4-5 (wheel/low straight)
+        if self.rank_values == [12, 3, 2, 1, 0]:  # A(12), 5(3), 4(2), 3(1), 2(0)
+            return True
+        return False
     
     def get_hand_rank(self):
         """Evaluate the poker hand and return its rank"""
@@ -195,7 +201,9 @@ class PokerGame:
     def replace_cards(self):
         """Replace selected cards with new ones from deck"""
         for i in sorted(self.selected_cards, reverse=True):
-            self.player_cards[i] = self.deck.deal(1)[0]
+            new_cards = self.deck.deal(1)
+            if new_cards:  # Only replace if deck has cards
+                self.player_cards[i] = new_cards[0]
         self.selected_cards = []
         self.game_state = "showdown"
         self.dealer_revealed = True
